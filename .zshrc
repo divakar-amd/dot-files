@@ -120,3 +120,5 @@ setopt rm_star_silent
 alias pytest='pytest --disable-pytest-warnings'
 alias code='/mnt/c/Program\ Files/Microsoft\ VS\ Code/bin/code'
 alias ll='ls -la'
+
+LS_COLORS="$LS_COLORS:ow=103;30;01"
