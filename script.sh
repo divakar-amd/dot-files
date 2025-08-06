@@ -16,5 +16,8 @@ source ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.plugi
 
 cat << 'EOF' >> ~/.bashrc
 alias dps='docker ps --format="table {{.ID}}\t{{printf \"%.50s\" .Image}}\t{{.RunningFor}}\t{{.Status}}\t{{.Names}}"'
+
+dstoprm() { for container in "$@"; do docker stop "$container" && docker rm "$container"; done; }
+
 EOF
 source ~/.bashrc
