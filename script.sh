@@ -6,6 +6,10 @@ tmux source-file ~/.tmux.conf
 
 cp .vimrc ~/
 
+## Copy docker run script
+cp drun.sh ~/.local/bin/drun
+chmod +x ~/.local/bin/drun
+
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
 cd  ~/.oh-my-zsh/custom/plugins
