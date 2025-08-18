@@ -10,3 +10,5 @@ docker pull ${image_name}
 cmd="docker run --name ${container_name} -i -d  --network=host ${gpu_args} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined ${mount_dirs} --shm-size=16G --ulimit core=0 --ulimit memlock=-1 --ulimit stack=67108864 ${image_name}"
 echo ${cmd}
 ${cmd}
+
+docker exec -it ${container_name} bash
