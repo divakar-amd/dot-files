@@ -18,7 +18,8 @@ chmod +x ~/.local/bin/drun
 cat << 'EOF' >> ~/.bashrc
 alias dps='docker ps --format="table {{.ID}}\t{{printf \"%.50s\" .Image}}\t{{.RunningFor}}\t{{.Status}}\t{{.Names}}"'
 
-dstoprm() { for container in "$@"; do docker stop "$container" && docker rm "$container"; done; }
-
 EOF
+
+cat custom_bash_cmds.sh >> ~/.bashrc
+
 source ~/.bashrc
