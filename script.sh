@@ -7,6 +7,7 @@ tmux source-file ~/.tmux.conf
 cp .vimrc ~/
 
 ## Copy docker run script
+mkdir -p ~/.local/bin
 cp drun.sh ~/.local/bin/drun
 chmod +x ~/.local/bin/drun
 
