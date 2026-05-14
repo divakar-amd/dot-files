@@ -3,8 +3,8 @@ gpu_args="--device /dev/kfd --device /dev/dri --group-add video"
 mount_dirs="-v /data/:/data -v ${HOME}/Projects/:/Projects -v /mnt/:/mnt/"
 myscript_path="${HOME}/Projects/dot-files/custom_bash_cmds.sh"
 
-image_name=$1
-container_name=$2
+container_name=$1
+image_name=${2:-"rocm/vllm-dev:nightly"}
 
 if [ ! -f "${myscript_path}" ]; then
     echo "ERROR: Script file not found at ${myscript_path}"
