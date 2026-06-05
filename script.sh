@@ -9,7 +9,9 @@ cp .vimrc ~/
 ## Copy docker run script
 mkdir -p ~/.local/bin
 cp drun.sh ~/.local/bin/drun
+cp drunl.sh ~/.local/bin/drunl
 chmod +x ~/.local/bin/drun
+chmod +x ~/.local/bin/drunl
 
 #sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 #cd  ~/.oh-my-zsh/custom/plugins

@@ -1,0 +1,89 @@
+
+gpu_args="--device /dev/kfd --device /dev/dri --group-add video" 
+mount_dirs="-v /data/:/data -v ${HOME}/Projects/:/Projects -v /mnt/:/mnt/"
+myscript_path="${HOME}/Projects/dot-files/custom_bash_cmds.sh"
+
+container_name=$1
+image_name=${2:-"rocm/vllm-dev:nightly"}
+
+if [ ! -f "${myscript_path}" ]; then
+    echo "ERROR: Script file not found at ${myscript_path}"
+    exit 1
+fi
+
+mount_dirs+=" -v ${myscript_path}:/root/custom_bash_cmds.sh"
+
+docker pull ${image_name}
+
+cmd="docker run --name ${container_name} -i -d  --network=host ${gpu_args} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined ${mount_dirs} --shm-size=16G --ulimit core=0 --ulimit memlock=-1 --ulimit stack=67108864 --entrypoint /bin/bash ${image_name}"
+echo ${cmd}
+${cmd}
+
+# adding 'source ...' to .bashrc will source the script for every instance of shell
+docker exec ${container_name} bash -c "echo \"source /root/custom_bash_cmds.sh\" >> /root/.bashrc"
+
+# Set up vLLM Python source to match container's compiled version
+vllm_path="/Projects/VLLM_DIR/vllm"
+echo "Setting up vLLM source to match container version..."
+docker exec ${container_name} bash -c "
+  # Fix git permission issue for mounted directory
+  git config --global --add safe.directory ${vllm_path}
+
+  if [ -d ${vllm_path} ]; then
+    # Get the exact commit hash from container's installed vLLM
+    echo 'Detecting vLLM version in container...'
+    VLLM_VERSION=\$(python -c 'import vllm; print(vllm.__version__)')
+    echo \"Container vLLM version: \${VLLM_VERSION}\"
+
+    # Try multiple methods to extract git commit hash
+    # Method 1: Extract from __version__ string (format: 0.21.1rc1.dev42+g966903eb9)
+    GIT_HASH=\$(echo \${VLLM_VERSION} | grep -oP 'g\K[0-9a-f]+')
+
+    # Method 2: Check _version.py for commit_id
+    if [ -z \"\${GIT_HASH}\" ]; then
+      echo 'Trying fallback method to detect commit hash...'
+      GIT_HASH=\$(python -c 'from vllm._version import commit_id; print(commit_id.lstrip(\"g\") if commit_id else \"\")' 2>/dev/null)
+    fi
+
+    if [ -z \"\${GIT_HASH}\" ]; then
+      echo 'WARNING: Could not extract git hash from container'
+      echo 'Skipping checkout. Your source may not match the container!'
+    else
+      echo \"Git commit hash: \${GIT_HASH}\"
+
+      cd ${vllm_path}
+
+      # Check if working directory is clean
+      if [ -z \"\$(git status --porcelain)\" ]; then
+        echo 'Fetching latest commits...'
+        git fetch origin
+
+        echo \"Checking out commit \${GIT_HASH}...\"
+        git checkout \${GIT_HASH}
+
+        if [ \$? -eq 0 ]; then
+          echo 'Successfully synced source with container version!'
+        else
+          echo 'WARNING: Checkout failed. Your source may not match the container!'
+        fi
+      else
+        echo 'WARNING: Working directory has uncommitted changes. Skipping checkout.'
+        git status --short
+        echo 'Your source may not match the container version!'
+      fi
+    fi
+
+    # Set PYTHONPATH to prioritize mounted source (Python files only, uses pre-compiled extensions)
+    echo 'export PYTHONPATH=${vllm_path}:\${PYTHONPATH}' >> /root/.bashrc
+    echo ''
+    echo '=== Setup Complete ==='
+    echo 'Python source: ${vllm_path}'
+    echo 'Compiled extensions: from container'
+    echo 'Python file changes will be picked up immediately (no recompilation needed)!'
+  else
+    echo 'WARNING: vLLM directory not found at ${vllm_path}'
+  fi
+"
+
+# Drop into interactive shell
+docker exec -it ${container_name} bash
