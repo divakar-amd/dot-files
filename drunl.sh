@@ -11,6 +11,36 @@ if [ ! -f "${myscript_path}" ]; then
     exit 1
 fi
 
+# Create unique vLLM directory for this container
+vllm_parent_dir="${HOME}/Projects/VLLM_DIR_CI"
+current_date=$(date +%m-%d)
+vllm_dir_name="vllm_${current_date}_${container_name}"
+vllm_path="${vllm_parent_dir}/${vllm_dir_name}"
+
+# Create parent directory if it doesn't exist
+if [ ! -d "${vllm_parent_dir}" ]; then
+    echo "Creating parent directory: ${vllm_parent_dir}"
+    mkdir -p ${vllm_parent_dir}
+fi
+
+# Clone vLLM repository if this specific directory doesn't exist or is not a valid git repo
+if [ ! -d "${vllm_path}/.git" ]; then
+    if [ -d "${vllm_path}" ]; then
+        echo "Directory exists but is not a git repository. Removing and cloning fresh..."
+        rm -rf ${vllm_path}
+    fi
+    echo "Cloning vLLM repository to ${vllm_path}..."
+    git clone https://github.com/vllm-project/vllm.git ${vllm_path}
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to clone vLLM repository"
+        exit 1
+    fi
+else
+    echo "Using existing vLLM directory: ${vllm_path}"
+fi
+
+# Add vLLM directory to mount_dirs
+mount_dirs+=" -v ${vllm_path}:${vllm_path}"
 mount_dirs+=" -v ${myscript_path}:/root/custom_bash_cmds.sh"
 
 docker pull ${image_name}
@@ -23,7 +53,6 @@ ${cmd}
 docker exec ${container_name} bash -c "echo \"source /root/custom_bash_cmds.sh\" >> /root/.bashrc"
 
 # Set up vLLM Python source to match container's compiled version
-vllm_path="/Projects/VLLM_DIR/vllm"
 echo "Setting up vLLM source to match container version..."
 docker exec ${container_name} bash -c "
   # Fix git permission issue for mounted directory
@@ -85,5 +114,5 @@ docker exec ${container_name} bash -c "
   fi
 "
 
-# Drop into interactive shell
-docker exec -it ${container_name} bash
+# Drop into interactive shell in the vLLM directory
+docker exec -it -w ${vllm_path} ${container_name} bash
