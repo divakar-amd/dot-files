@@ -51,7 +51,18 @@ mount_dirs+=" -v ${myscript_path}:/root/custom_bash_cmds.sh"
 
 docker pull ${image_name}
 
-cmd="docker run --name ${container_name} -i -d  --network=host ${gpu_args} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined ${mount_dirs} --shm-size=16G --ulimit core=0 --ulimit memlock=-1 --ulimit stack=67108864 --entrypoint /bin/bash ${image_name}"
+# Read HuggingFace token from config file
+hf_token_file="${HOME}/.config/huggingface/token"
+if [ -f "${hf_token_file}" ]; then
+    HF_TOKEN=$(cat "${hf_token_file}")
+    env_vars="-e HF_TOKEN=${HF_TOKEN} -e HF_HOME=/data/models/hub"
+    echo "HuggingFace token loaded from ${hf_token_file}"
+else
+    echo "WARNING: HuggingFace token not found at ${hf_token_file}"
+    env_vars=""
+fi
+
+cmd="docker run --name ${container_name} -i -d  --network=host ${gpu_args} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined ${mount_dirs} ${env_vars} --shm-size=16G --ulimit core=0 --ulimit memlock=-1 --ulimit stack=67108864 --entrypoint /bin/bash ${image_name}"
 echo ${cmd}
 ${cmd}
 
