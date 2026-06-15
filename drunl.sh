@@ -1,7 +1,8 @@
 
-gpu_args="--device /dev/kfd --device /dev/dri --group-add video" 
+gpu_args="--device /dev/kfd --device /dev/dri --group-add video"
 mount_dirs="-v /data/:/data -v ${HOME}/Projects/:/Projects -v /mnt/:/mnt/"
 myscript_path="${HOME}/Projects/dot-files/custom_bash_cmds.sh"
+claude_dir="${HOME}/.claude"
 
 container_name=$1
 image_name=${2:-"rocm/vllm-dev:nightly"}
@@ -9,6 +10,11 @@ image_name=${2:-"rocm/vllm-dev:nightly"}
 if [ ! -f "${myscript_path}" ]; then
     echo "ERROR: Script file not found at ${myscript_path}"
     exit 1
+fi
+
+if [ ! -d "${claude_dir}" ]; then
+    echo "WARNING: Claude directory not found at ${claude_dir}"
+    echo "Claude Code will be installed without custom settings"
 fi
 
 # Create unique vLLM directory for this container
@@ -51,6 +57,48 @@ ${cmd}
 
 # adding 'source ...' to .bashrc will source the script for every instance of shell
 docker exec ${container_name} bash -c "echo \"source /root/custom_bash_cmds.sh\" >> /root/.bashrc"
+
+# Copy Claude configuration directory if available
+if [ -d "${claude_dir}" ]; then
+    echo "Copying Claude configuration to container..."
+    docker exec ${container_name} mkdir -p /root/.claude
+    docker cp ${claude_dir}/. ${container_name}:/root/.claude/
+    echo "Claude configuration directory copied successfully"
+fi
+
+# Copy .claude.json file if it exists (separate from the .claude directory)
+if [ -f "${HOME}/.claude.json" ]; then
+    echo "Copying .claude.json to container..."
+    docker cp ${HOME}/.claude.json ${container_name}:/root/.claude.json
+    echo ".claude.json copied successfully"
+elif [ -d "${claude_dir}/backups" ]; then
+    # If .claude.json doesn't exist but backups do, restore from the latest backup
+    echo "Restoring .claude.json from backup..."
+    docker exec ${container_name} bash -c "
+        latest_backup=\$(ls -t /root/.claude/backups/.claude.json.backup.* 2>/dev/null | head -1)
+        if [ -n \"\$latest_backup\" ]; then
+            cp \"\$latest_backup\" /root/.claude.json
+            echo \"Restored from \$latest_backup\"
+        fi
+    "
+fi
+
+# Install Claude Code in the container
+echo "Installing Claude Code in container..."
+docker exec ${container_name} bash -c "
+  # Install curl if not available
+  if ! command -v curl &> /dev/null; then
+    apt-get update && apt-get install -y curl
+  fi
+
+  # Install Claude Code
+  curl -fsSL https://claude.ai/install.sh | bash
+
+  # Add ~/.local/bin to PATH and set Claude environment variables in .bashrc
+  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> /root/.bashrc
+  echo 'export CLAUDE_TRUST_WORKSPACE=1' >> /root/.bashrc
+  echo 'export CLAUDE_AUTO_APPROVE_SETUP=1' >> /root/.bashrc
+"
 
 # Set up vLLM Python source to match container's compiled version
 echo "Setting up vLLM source to match container version..."
